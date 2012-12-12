@@ -5,8 +5,6 @@ topdir = './actual/'
 
 files = os.listdir(topdir)
 
-count
-
 def doSite(filename):
     togo = {}
     f = open(filename)

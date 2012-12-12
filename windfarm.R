@@ -8,7 +8,7 @@ rundata <- function() {
   siteClasses <- c()
   siteClasses$DATE <- "character"
 
-  site1.dat <- read.csv("/home/sgithens/code/windfarm/actual/SITE_00001.CSV",
+  site1.dat <- read.csv("./actual/SITE_00001.CSV",
                         header=TRUE, skip=2,
                         colClasses=siteClasses)
 
@@ -42,18 +42,34 @@ getOneDay <- function() {
 
 fitLinearSpeedPowerModel <- function(data) {
   attach(data)
-  #m <- lm(NETPOWER.MW. ~ SPEED80M.M.S.)
-  m <- lm(NETPOWER.MW. ~ SPEED80M.M.S. + I(SPEED80M.M.S.^2) + I(SPEED80M.M.S.^3) + I(SPEED80M.M.S.^4) + I(SPEED80M.M.S.^5) )
-  #m <- lm(NETPOWER.MW. ~ I(sqrt(SPEED80M.M.S.)))
+  m <- lm(NETPOWER.MW. ~ SPEED80M.M.S. + I(SPEED80M.M.S.^2) + I(SPEED80M.M.S.^3) )
   print(summary(m))
+  png(filename="images/linearFit.png")
+  plot(SPEED80M.M.S.,NETPOWER.MW.)
+  points(SPEED80M.M.S.,predict(m), col = "blue")
+  dev.off()
   detach(data)
   return(m)
+}
+
+weibullExploration <- function(data) {
+  attach(data)
+  png(filename="images/weibullexploration.png")
+  plot(SPEED80M.M.S.,NETPOWER.MW.)
+  seq <- seq(0,2.5,0.01)
+  points((seq*4.8)+6,(pweibull(seq,shape=1.8,scale=1)*120)+45,col="blue")
+  dev.off()
+  detach(data)
 }
 
 fitCurvedSpeedPowerModel <- function(data) {
   attach(data)
   m <- nls(NETPOWER.MW. ~ SSweibull(SPEED80M.M.S.,Asym,Drop,lrc,pwr))
   print(summary(m))
+  png(filename="images/SSweibullFit.png")
+  plot(SPEED80M.M.S.,NETPOWER.MW.)
+  points(SPEED80M.M.S.,predict(m), col = "blue")
+  dev.off()
   detach(data)
   return(m)
 }
@@ -61,13 +77,9 @@ fitCurvedSpeedPowerModel <- function(data) {
 main <- function() {
   oneday <- getOneDay()
   plotDay(oneday)
-  m <- fitCurvedSpeedPowerModel(oneday)
-  attach(oneday)
-  png(filename="images/SSweibullFit.png")
-  plot(SPEED80M.M.S.,NETPOWER.MW.)
-  points(SPEED80M.M.S.,predict(m), col = "blue")
-  dev.off()
-  detach(oneday)
+  #weibullExploration(oneday)
+  #fitCurvedSpeedPowerModel(oneday)
+  #fitLinearSpeedPowerModel(oneday)
 }
 
 

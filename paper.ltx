@@ -1,0 +1,448 @@
+\documentclass[10pt]{sigplanconf}
+
+% The following \documentclass options may be useful:
+%
+% 10pt          To set in 10-point type instead of 9-point.
+% 11pt          To set in 11-point type instead of 9-point.
+% authoryear    To obtain author/year citation style instead of numeric.
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{fancyvrb}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{breakurl}
+\usepackage{caption}
+\usepackage{float}
+\DeclareCaptionType{copyrightbox}
+
+\begin{document}
+
+\CopyrightYear{2012}
+
+\titlebanner{Wavefront Paper}        % These are ignored unless
+\preprintfooter{Open Windfarm}   % 'preprint' option specified.
+
+\title{Eastern Wind Turbine Analysis and Reverse Engineering Data Sources}
+\subtitle{A case study in realizing open data}
+
+\authorinfo{Steven Githens}
+           {IUPUI}
+           {sgithens@iupui.edu}
+
+\maketitle
+
+\begin{abstract}
+In order to be successful, the modern data scientist must be able to 
+nimbly adapt to a wide array of data sources, schemas, and software
+tools. More than ever there is an abundance of freely available 
+research data and numerous open source software packages on hand
+to analyze it. In this paper, we present a case study of how one 
+might go about processing this data, and some of the tools that can
+be used. Additionally we talk about what can be done in difficult
+situations when there is only limited access to either the data
+or the tools used to produce it.
+
+For our case study we use a set of data that was commissioned by the
+National Renewable Energy Laboratory \cite{nrel} to simulate windfarm turbines
+in potential locations around the United States. The data was seperated
+into sets for the eastern and western sides of the country. The
+eastern data set was chosen simply because that happens to be where
+the author resides.
+
+\end{abstract}
+
+\terms
+Statistics, Data, Visualization
+
+\keywords
+R, Python, WRF, BatchGEO
+
+\section{Going Forth With Purpose}
+
+When faced with a new data set or corpus of material on a subject we wish
+to explore, there is always some purpose or reason in the back of our 
+minds that we are equipped with to see us through the task. There are 
+a few these in this study that the author has in mind which will be 
+presented now. 
+
+The data set itself in this case is important as it deals with renewable
+energy, a key component is making sure our species does not become
+extinct in the new few centuries by the elimination of it's suitable
+habitat! In order to create the dataset, upwards of 7000 potential
+locations were chosen, both onshore and offshore of the atlantic
+seaboard and great lakes. These simulated wind turbine locations can be
+used as key aspects for affecting policy decisions and investments
+in energy in these areas.
+
+The second motivation, that did not fully present itself until 
+investigating the data, is having open access to data. In this case
+we do not mean just being able to freely download the data, but
+also being able to access the tools and methods necessary to 
+reproduce the data, so that organizations can truly work with it
+in the future.
+
+Lastly, it should be noted that this is in part an {\it educational}
+endeavor, so the goal is largely to demonstrate the usage and 
+possibilities of the software packages involved. It would be
+untenable to use any of the results contained within for 
+making serious desicions, however the approaches can be used
+as a foundation for conducting larger, more long-term studies.
+
+\section{About the Data}
+
+\subsection{Overview}
+
+The data set being used is the Eastern Wind Dataset \cite{eastern-data}.
+
+The raw data set consists of simulated wind data for roughly 7000 sites
+on the eastern half of the United States. These were selected based
+on varying criteria such as distance from airports, park land, and
+other issues. The wind speeds were then simulated using a proprietary weather
+model, with the output consisting of wind speed predictions every
+10 minutes for 3 years including 2004, 2005, 2006. For various 
+logistic reasons, this varies a bit for some sites (such as a few
+sites only include 1 year or some other fraction of the time),
+but in general the data set is very complete. Also included are
+intervals predicting the weather in 4, 6, and 24 hour forecasts.
+For this paper we will stick to the 10 minute simulated wind data.
+
+Each selected geographical site contains 1 comma separated value (csv)
+file to hold it's contents. These files can become quite large, and the
+entire dataset is several gigabytes. For each of these files,
+the columns include:
+
+\begin{itemize}
+\item Date, separated into day and minute columns.
+\item Wind Speed, in meters per second, measured at 80 meters above the 
+ground.
+\item Netpower, in MegaWatts.
+\end{itemize}
+
+Additionally, the header lines of each file include important information
+we will scrape such as power class and rated power cap, latitutde and 
+longitude, and site number. \ref{fig:rawdatastructure}
+
+\begin{figure}
+\fontsize{7pt}{8pt}\selectfont
+\begin{verbatim}
+SITE NUMBER: 00001 RATED CAP:  171.8 IEC CLASS: 1 LOSSES (%): 14.2
+SITE LATITUDE:   34.98420 LONGITUDE: -104.03971
+DATE,TIME(UTC),SPEED80M(M/S),NETPOWER(MW)
+20040101,0010,6.60,46.34
+20040101,0020,6.77,48.00
+20040101,0030,7.17,53.37
+20040101,0040,7.84,62.71
+20040101,0050,8.97,79.92
+\end{verbatim}
+\caption{Raw data structure}
+\label{fig:rawdatastructure}
+\end{figure}
+
+The NREL also has some data in an excel sheet that aggregates the
+above data set into a summary. This includes information such as the
+site number, state, averaged power and capacity factors. \ref{fig:aggregatedexcel}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/aggregateddata.png}
+\caption{Aggregated data for each site}
+\label{fig:aggregatedexcel}
+\end{figure}
+
+\subsection{Looking at a particular day}
+
+To get a better feeling of what a day of wind data looks like, 
+we can use R to parse a file for a single day, and then pull
+just one days worth of data from that file. \footnote{See the plotDay
+function in the R source}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/2004-01-01-time-vs-speed.png}
+\caption{Time vs Wind Speed for a Single Day}
+\label{fig:timevsspeed}
+\end{figure}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/2004-01-01-time-vs-power.png}
+\caption{Time vs Power for a Single Day}
+\label{fig:timevspower}
+\end{figure}
+
+From the graphs of time vs speed \ref{fig:timevsspeed} and 
+time vs power \ref{fig:timevspower} we can get a feel of how
+the speed affects power as the curves mimic each other to
+a certain extent.
+
+\subsection{Collecting data from all Site Files}
+
+In addition to working on single site csv files, we may
+want to collect and process header information from all 
+of them. This would be necessary for reproducing the final
+aggregated data as part of the next section, but also for
+other visual means.
+
+The python source shows how we can parse all the site csv files we
+have from the simulated study, and then output them in a format
+suitable for creating a geographic visualization.  In this example we
+are creating another csv file that can be used as input to BatchGEO,
+and popular Web 2.0 site that allows overlaying site data on a Google
+Map or Open Streetmap style mashup. \ref{fig:onshoremap} \footnote{The
+  output from this data run is located at
+  \url{http://batchgeo.com/map/c0bb3d2534dc11a0ac8e303b5cff809e}}
+Currently we are just pulling out the site number, latitude, and longtitude, but any
+of the header items could be pulled out.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/onshore-sites-map.png}
+\caption{Interactive map of onshore sites}
+\label{fig:onshoremap}
+\end{figure}
+
+\section{Reproducing the Data}
+
+\subsection{A Small Excercise in Reverse Engineering Data}
+
+Next we turn to reassembling the data, and reproducing the study
+from scratch. This turns out to be interesting for us, 
+because it allows us to look at some interesting statistical
+qualities of the data, and to explore more open source
+software packages.
+
+The crux of the issue here is that a proprietary model was
+used to simulate the wind speeds, so that's no good for us.
+Luckily, the data set for the western side of the United
+States was simulated with an open source package, so there
+is hope that that can be used to fill in the gaps. This is
+a fairly commonly occuring phenomenon for the open data
+scientist: finding that certain parts of their progress 
+are blocked by not having access to some of the required 
+tools. Whatever the setback though, the challenge of 
+working around them is always invigorating and usually
+introduces one to new communities of like minded scientists
+pursuing the same issues, and improving the global 
+camaraderie among peers.
+
+The second part of reproducing the raw data is determining
+a turbine model that can be used to create the megawatt
+output for each 10 minute interval based on the wind speed.
+The outputs in the raw dataset where produced by AWS \cite{studyfinal}
+by combining information from 3 commercial turbine engines.
+
+Given a current lack of access to civil or mechanical engineers
+we will bootstrap \footnote{It's important to note that in this 
+scenerio, we use the term bootstrap in it's software engineering
+context, not in the context of statistical bootstrapping that 
+invovles taking subsamples of your existing data, although we
+are doing work based on subsets of the data.}
+our model by building it based off of the {\it current}
+data from the study. Given the incredibly large number of samples
+, this has turned out to be a reasonable approach.
+
+With the above 2 requirements we are able to reproduce the 
+raw output file format of the study. At that point, we would 
+just need to aggregate them, and apply formulas to calculate
+the capacity factor based on the power outputs. For this iteration
+of the case study, one will notice that we are also leaving out
+the actual {\it selection} of the geographical sites. It's presumed
+that one could do this, given there are fairly available and open
+data sets for geographical data in the United States.
+
+\subsection{Simulating the Wind Speeds}
+
+The problem of simulating wind speeds can be solved by using 
+an open software package that was used for generating the
+analogous data set for the western half of the United States.
+The Weather Research \& Forecasting Model \cite{wrfhome} is a collaborative
+project among a number of universities to build a set of
+tools for predictive analysis and simulation of weather
+and atmospheric conditions.
+
+The project is written in C and Fortran and relatively straightforward
+to compile on a modern Linux distribution such as Ubuntu or
+Fedora. Being a rather large project, there is some learning curve, so
+for this study we did not get much further than downloading the source
+\cite{wrfdownload}, compiling, and looking a few of the tutorials
+\cite{wrftutorial}. However, given adequate resource, the development
+of the configuration files and sample data for simulating wind speed
+samples on the eastern half of the continent is certainly feasible.
+
+\subsection{Looking for a Turbine Curve Model}
+
+We want to create a model for the turbine curve based off of
+wind speed. For sake of computation speed, we will use
+1 days worth of data from site 1 for these figures. 
+\footnote{Also because when plotting large amounts of the data,
+the curve becomes very dense from the points, making it hard
+to see other overlays and trends in the data.}
+
+A beginning scatter plot shows that the data is a bit like a 
+cubic on it's side, and we may want to see if we can still
+fit a linear model to it. It's clear that a first order model
+will be an awful fit, but we can come close with a cubic 
+model. \ref{fig:linearfit}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/linearFit.png}
+\caption{First attempt with cubic linear model}
+\label{fig:linearfit}
+\end{figure}
+
+
+This may be Ok, but it justs feels wrong. We {\it know} that this
+model was developed based on real turbine engines, and by 
+doing a small bit research \cite{turbinecurves}
+we find that it's well known that these \footnote{As well as many
+other other engineering problems} can be modelled with 
+Weibull distributions, so it makes sense to explore that.
+
+We can do some exploration and manually fit a Weibull over our data by
+giving it the appropriate X and Y offsets, using a shape parameter
+of roughly 1.8, and keeping alpha at 1. \ref{fig:weibullexplore} We
+can now turn to R's nls function for fitting non linear models.
+Unlike the linear model fitting in R, rather than providing a number
+of coeffients on the right hand side to fit, we provide an equation
+with certain unbound variable parameters, and these are what R will
+fit to solve the minimization problem.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/weibullexploration.png}
+\caption{Manual inspection of a weibull to our data}
+\label{fig:weibullexplore}
+\end{figure}
+
+
+Because NLS works by iterating along a gradient problem to find the
+minimization, it is necessary to provide starting values for the
+equation. This can be a very tricky problem, and as Peter Dalgaard
+describes, ``Finding starting values is an art rather than a craft'' \cite{dalgaard}
+Given the author's current amatuer statistical abilities, we were unable to
+select starting values, but all is not lost!  R ships with several
+{\it self starting} model functions that can be used in the nls
+function. When a self starting model is used, it is able to guess
+values to start with. In the case of this model, it works very well,
+with the fitted weibull \ref{fig:weibullfit} now modelling the turbine
+output curve quite well.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=3.2in]{images/SSweibullFit.png}
+\caption{Nonlinear Weibull Model Fit}
+\label{fig:weibullfit}
+\end{figure}
+
+From the output \ref{fig:nlsoutput} we can see the values of the 
+parameter fits for the nonlinear model, and that it only
+took 4 iterations to minimize the problem using the self
+starting weibull function.
+
+\begin{figure}
+\fontsize{7pt}{8pt}\selectfont
+\begin{verbatim}
+Formula: NETPOWER.MW. ~ SSweibull(SPEED80M.M.S., Asym, Drop, lrc, pwr)
+
+Parameters:
+     Estimate Std. Error t value Pr(>|t|)    
+Asym 163.0551     0.8997  181.23   <2e-16 ***
+Drop 116.3540     4.3543   26.72   <2e-16 ***
+lrc  -13.7634     1.0135  -13.58   <2e-16 ***
+pwr    5.5966     0.4022   13.92   <2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1 
+
+Residual standard error: 5.839 on 139 degrees of freedom
+
+Number of iterations to convergence: 4 
+Achieved convergence tolerance: 4.451e-06
+\end{verbatim}
+\caption{Fitted NLS Values}
+\label{fig:nlsoutput}
+\end{figure}
+
+We can now take random samples from this resulting weibull
+distribution to model our output from the wind speeds.
+
+\section{Conclusions}
+
+We hope this brief survey of open source tools, visualization libraries,
+and statistical techniques has shown how it's possible to 
+conduct import research and work to improve the public good
+even when portions of the necessary stack are closed or
+missing. Starting with a data set of great importance to
+society, namely of potential renewable energy sources, we've
+used several packages to analyse and find ways to 
+reproduce the data. These techniques can now be used to further
+develop the data necessary to make informed
+policy decisions, and reproduce the study in other sections
+of the world, or repeat it in parts of the United States.
+
+\section{Running the code samples}
+
+Both the python and R code for this project can be run 
+using the standard libraries included in their distributions
+and do not require extra libraries. In order to run the 
+samples you will need to download at least the onshore\_sites.zip
+file from the data download area \cite{winddownload} and
+unzip it's contents into a folder named 'actual' placed in
+the same directory as the python and R files. The different
+R routines are in the main function and can be uncommented
+separately to be run.
+
+The aggregated spreadsheet \cite{aggregatedwinddata} can also
+be found on the eastern wind data site.
+
+The source code for the examples, as well as the ltx source
+for this paper can be found on the projects github site.
+\cite{windfarmgithub}
+
+\bibliographystyle{abbrvnat}
+
+% The bibliography should be embedded for final submission.
+
+\begin{thebibliography}{}
+\softraggedright
+
+\vfill\eject
+\bibitem{eastern-data}
+Eastern Wind Data Set, \url{http://www.nrel.gov/electricity/transmission/eastern_wind_methodology.html}
+
+\bibitem{nrel}
+National Renewable Energy Lab, \url{http://www.nrel.gov}
+
+\bibitem{turbinecurves}
+Wind Statistics and the Weibull distribution, \url{http://www.wind-power-program.com/wind_statistics.htm}
+
+\bibitem{dalgaard}
+Peter Dalgaard:
+Introductory Statistics with R, Springer, 2008
+
+\bibitem{wrfhome}
+Weather Research \& Forecasting Model Project \url{http://www.wrf-model.org}
+
+\bibitem{wrftutorial}
+WRF Tutorial \url{http://www.mmm.ucar.edu/wrf/OnLineTutorial/index.htm}
+
+\bibitem{wrfdownload}
+WRF Download \url{http://www.mmm.ucar.edu/wrf/users/download/wrf-regist.php}
+
+\bibitem{winddownload}
+Eastern Wind Dataset Download \url{http://www.nrel.gov/electricity/transmission/eastern_wind_disclaimer.html?ftp}
+
+\bibitem{aggregatedwinddata}
+Aggregated Eastern Wind Dataset \url{http://www.nrel.gov/electricity/transmission/docs/eastern_wind_dataset_site_summary.xlsx}
+
+\bibitem{windfarmgithub}
+Project site on Github \url{https://github.com/sgithens/windfarm}
+
+\bibitem{studyfinal}
+Final Report from NREL Study \url{http://www.nrel.gov/electricity/transmission/pdfs/aws_truewind_final_report.pdf}
+
+\end{thebibliography}
+
+\end{document}
